@@ -3,6 +3,8 @@ import java.io.FileNotFoundException;
 
 public class VideoPlayer {
     public static void main(String[] args) {
+        if(args.length < 3)
+            System.err.println("usage: java VideoPlayer [VideoFileDirectory(.rgb)] [AudioFile]");
 		String audiofilename = args[1];
 		// opens the inputStream
 		FileInputStream inputStream;
