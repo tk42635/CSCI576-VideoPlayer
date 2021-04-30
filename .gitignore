@@ -4,3 +4,5 @@
 *.pdf
 *.txt
 *.jpg
+*.iml
+.idea/
