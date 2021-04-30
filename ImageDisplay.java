@@ -126,7 +126,7 @@ public class ImageDisplay extends Thread {
 	 * Divide the current frame into blocks, for every single block,
 	 * search for the most similar block within a search area defined by SEARCH_RADIUS in the prev frame,
 	 * add the sum of absolute difference (SAD) to the frame difference.
-	 * Return the frame difference
+	 * Return the frame difference.
 	 *
 	 * @param currFrameIdx the current frame index
 	 * @return the absolute difference between currFrame and prevFrame
