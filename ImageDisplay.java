@@ -156,8 +156,18 @@ public class ImageDisplay extends Thread {
 						int blockDiff = 0;
 						for (int deltaX = 0; deltaX < BLOCK_WIDTH; deltaX++) {
 							for (int deltaY = 0; deltaY < BLOCK_HEIGHT; deltaY++) {
-								blockDiff = Math.abs(prevFrame.getRGB(x0 + deltaX, y0 + deltaY)
-										- currFrame.getRGB(x1 + deltaX, y1 + deltaY));
+								int prevPixel = prevFrame.getRGB(x0 + deltaX, y0 + deltaY);
+								int prevBlue = prevPixel & 0xff;
+								int prevGreen = (prevPixel & 0xff00) >> 8;
+								int prevRed = (prevPixel & 0xff0000) >> 16;
+
+								int currPixel = currFrame.getRGB(x1 + deltaX, y1 + deltaY);
+								int currBlue = currPixel & 0xff;
+								int currGreen = (currPixel & 0xff00) >> 8;
+								int currRed = (currPixel & 0xff0000) >> 16;
+
+								blockDiff = Math.abs(currBlue - prevBlue) + Math.abs(currGreen - prevGreen)
+								+ Math.abs(currRed - prevRed);
 							}
 						}
 
