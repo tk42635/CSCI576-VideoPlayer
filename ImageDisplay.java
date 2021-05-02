@@ -111,7 +111,8 @@ public class ImageDisplay extends Thread {
 				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
 
 				if (i > 0) {
-					int frameDiff = calcFrameDiff(i);
+					// int frameDiff = calcFrameDiff(i);
+					int frameDiff = calcFrameHistogramDiff(i);
 					frameDiffMean += frameDiff;
 					frameDiffs.add(frameDiff);
 				}
@@ -151,7 +152,7 @@ public class ImageDisplay extends Thread {
 	 * @param currFrameIdx the current frame index
 	 * @return the absolute difference between currFrame and prevFrame
 	 */
-	public int calcFrameDiff(int currFrameIdx) {
+	public int calcFrameDiffBasedOnBlocks(int currFrameIdx) {
 		BufferedImage prevFrame = video[currFrameIdx - 1];
 		BufferedImage currFrame = video[currFrameIdx];
 
@@ -201,6 +202,138 @@ public class ImageDisplay extends Thread {
 
 		// System.out.println(frameDiff);
 		return frameDiff;
+	}
+
+	/**
+	 * histograms:
+	 * tables that contain (for each color within a frame) the number of pixels that are shaded in that color.
+	 *
+	 * Reference:
+	 * https://www-nlpir.nist.gov/projects/tvpubs/tvpapers03/ramonlull.paper.pdf
+	 *
+	 * @param currFrameIdx the current frame index
+	 * @return the absolute difference between currFrame and prevFrame
+	 */
+	public int calcFrameHistogramDiff(int currFrameIdx) {
+		int frameDiff = 0;
+
+		int[][] prevFrameHistograms = calcFrameRGBHistograms(currFrameIdx - 1);
+		int[][] currFrameHistograms = calcFrameRGBHistograms(currFrameIdx);
+
+//		int[] prevFrameHistograms = calcFrameHSVHistograms(currFrameIdx - 1);
+//		int[] currFrameHistograms = calcFrameHSVHistograms(currFrameIdx);
+
+		for (int component = 0; component < 3; component++) {
+			for (int bin = 0; bin < 8; bin++) {
+				frameDiff += Math.abs(currFrameHistograms[component][bin]
+										- prevFrameHistograms[component][bin]);
+			}
+		}
+
+//		for (int hue = 0; hue <= 360; hue++) {
+//			frameDiff += Math.abs(currFrameHistograms[hue] - prevFrameHistograms[hue]);
+//		}
+
+		return frameDiff;
+	}
+
+	/**
+	 * Considering space and also limited response of human visual system,
+	 * quantization is done by eliminating four least significant bits of each channel.
+	 */
+	public int[][] calcFrameRGBHistograms(int frameIdx) {
+		BufferedImage frame = video[frameIdx];
+		int[][] histograms = new int[3][8];
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				int pixel = frame.getRGB(x, y);
+				int quantizedR = (pixel & 0xf00000) >> 16;
+				histograms[0][getBin(quantizedR)]++;
+
+				int quantizedG = (pixel & 0xf000) >> 8;
+				histograms[1][getBin(quantizedG)]++;
+
+				int quantizedB = pixel & 0xf0;
+				histograms[2][getBin(quantizedB)]++;
+			}
+		}
+		return histograms;
+	}
+
+	public int getBin(int val) {
+		if (val <= 16) {
+			return 0;
+		} else if (val <= 48) {
+			return 1;
+		} else if (val <= 80) {
+			return 2;
+		} else if (val <= 112) {
+			return 3;
+		} else if (val <= 144) {
+			return 4;
+		} else if (val <= 176) {
+			return 5;
+		} else if (val <= 208) {
+			return 6;
+		} else {
+			return 7;
+		}
+	}
+
+	public int[] calcFrameHSVHistograms(int frameIdx) {
+		BufferedImage frame = video[frameIdx];
+		int[] histograms = new int[360];
+
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				int pixel = frame.getRGB(x, y);
+				float R = ((pixel & 0xff0000) >> 16) / 255.0f;
+				float G = ((pixel & 0xff00) >> 8) / 255.0f;
+				float B = (pixel & 0xff) / 255.0f;
+
+				float[] hsv = RGBtoHSV(R, G, B);
+				histograms[(int)(hsv[0])]++;
+			}
+		}
+		return histograms;
+	}
+
+	float[] RGBtoHSV(float r, float g, float b) {
+		float[] hsv = new float[3];
+		// h, s, v = hue, saturation, value
+		double cmax = Math.max(r, Math.max(g, b)); // maximum of r, g, b
+		double cmin = Math.min(r, Math.min(g, b)); // minimum of r, g, b
+		double diff = cmax - cmin; // diff of cmax and cmin.
+		double h = -1, s = -1;
+
+		// if cmax and cmax are equal then h = 0
+		if (cmax == cmin) {
+			h = 0;
+		} else if (cmax == r) {
+			// if cmax equal r then compute h
+			h = (60 * ((g - b) / diff) + 360) % 360;
+		} else if (cmax == g) {
+			// if cmax equal g then compute
+			h = (60 * ((b - r) / diff) + 120) % 360;
+		} else if (cmax == b) {
+			// if cmax equal b then compute h
+			h = (60 * ((r - g) / diff) + 240) % 360;
+		}
+
+		// if cmax equal zero
+		if (cmax == 0) {
+			s = 0;
+		} else {
+			s = (diff / cmax) * 100;
+		}
+
+		// compute v
+		double v = cmax * 100;
+		hsv[0] = (float) h;
+		hsv[1] = (float) s;
+		hsv[2] = (float) v;
+
+		return hsv;
 	}
 
 	public void run() {
