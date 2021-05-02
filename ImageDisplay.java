@@ -22,9 +22,9 @@ public class ImageDisplay extends Thread {
 	int height = 180;
 
 	ArrayList<Integer> frameDiffs;
-	static final int BLOCK_HEIGHT = 18;
-	static final int BLOCK_WIDTH = 32;
-	static final int SEARCH_RADIUS = 8;
+	static final int BLOCK_HEIGHT = 36;
+	static final int BLOCK_WIDTH = 64;
+	static final int SEARCH_RADIUS = 6;
 
 	String videodir;
 
@@ -100,6 +100,7 @@ public class ImageDisplay extends Thread {
 	 */
 	public void detectShots() {
 		try {
+			double frameDiffMean = 0;
 			for (int i = 0; i < 16200; i++) {
 				if (i > 1) {
 					// avoid out of memory error
@@ -111,11 +112,30 @@ public class ImageDisplay extends Thread {
 
 				if (i > 0) {
 					int frameDiff = calcFrameDiff(i);
+					frameDiffMean += frameDiff;
 					frameDiffs.add(frameDiff);
 				}
 			}
 
-			// TODO: divide frames into shots based on frame diff;
+			// Divide frames into shots based on frame diff;
+			// Define threshold as (mean + 2 * standard deviation)
+			frameDiffMean /= 16199.0;
+			double frameDiffStandardDeviation = 0;
+			for (int frameDiff : frameDiffs) {
+				int deviation = (int) (frameDiff - frameDiffMean);
+				frameDiffStandardDeviation += deviation * deviation;
+			}
+			frameDiffStandardDeviation = (long) Math.sqrt(frameDiffStandardDeviation / 16199.0);
+
+
+			double threshold = frameDiffMean + 2 * frameDiffStandardDeviation;
+			System.out.println("threshold: " + threshold);
+			for (int i = 0; i < frameDiffs.size(); i++) {
+				if (frameDiffs.get(i) > threshold) {
+					System.out.println(i + " : " + frameDiffs.get(i));
+				}
+			}
+
 		} catch (Exception e) {
 			// Throwing an exception
 			System.out.println(e.getMessage());
@@ -179,7 +199,7 @@ public class ImageDisplay extends Thread {
 			}
 		}
 
-		System.out.println(frameDiff);
+		// System.out.println(frameDiff);
 		return frameDiff;
 	}
 
