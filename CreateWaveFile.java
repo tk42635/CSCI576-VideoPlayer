@@ -3,11 +3,10 @@ import java.io.*;
 import java.util.ArrayList;
 
 public class CreateWaveFile {
+   private static File audioFile;
    private final double FPS = 30; // Frames Per Second
    private final int EXTERNAL_BUFFER_SIZE = 524288; // 128Kb
    private double bytesPerVideoFrame;
-
-   private static File audioFile;
    private InputStream waveStream;
    private AudioInputStream audioInputStream;
 

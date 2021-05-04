@@ -1,4 +1,7 @@
-import javax.sound.sampled.*;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import java.io.*;
 import java.util.ArrayList;
 
@@ -51,7 +54,7 @@ public class AudioAnalyze {
       int readBytes = 0;
       byte[] audioBuffer = new byte[EXTERNAL_BUFFER_SIZE];
       long byteCount = 0;
-      int index = 1;
+      int index = 0;
       double weightTotal = 0;
       int weightCount = 0;
       double max = Double.NEGATIVE_INFINITY;
@@ -73,13 +76,13 @@ public class AudioAnalyze {
                      weightTotal += Math.abs(audioBuffer[i]);
                      weightCount++;
                   }
-
                   // At the breakpoint, calculate the average for the previous shot and reset the average weight counters for the next shot
                   else {
                      System.out.print(" index: " + index);
                      System.out.print(" break: " + breakPoint);
+                     System.out.print(" endFrame: " + breakPoint / 6400);
                      if (index < breaks.size()) {
-                        System.out.print(" frame: "+ breaks.get(index));
+                        System.out.print(" Next endFrame: " + breaks.get(index));
                      }
                      System.out.print(" add: " + weightTotal / weightCount);
                      System.out.println(" byteCount: " + byteCount);
@@ -102,8 +105,9 @@ public class AudioAnalyze {
             }
          }
 
+         System.out.println(" byteCount: " + byteCount);
 
-         while (audioWeights.size() < breaks.size() - 1) {
+         while (audioWeights.size() < breaks.size()) {
             System.out.println(" ---------------");
             System.out.print(" index: " + index);
             System.out.print(" break: " + breakPoint);
@@ -122,10 +126,11 @@ public class AudioAnalyze {
          }
          System.out.println();
          System.out.println("MAX: " + max);
+         System.out.println("audioWeights.size(): " + audioWeights.size());
 
          for (int i = 0; i < audioWeights.size(); i++) {
             double val = audioWeights.get(i);
-            System.out.println(val);
+            //System.out.println(val);
             //audioWeights.set(i, max / val);
             audioWeights.set(i, val / max);
          }

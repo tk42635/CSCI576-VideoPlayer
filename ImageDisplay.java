@@ -1,17 +1,10 @@
-
+import javax.swing.*;
 import java.awt.*;
-import java.awt.image.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-
-import javax.lang.model.util.ElementScanner6;
-import javax.swing.*;
-import javax.swing.tree.DefaultTreeCellEditor;
-
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 
 public class ImageDisplay extends Thread {
 
@@ -26,6 +19,7 @@ public class ImageDisplay extends Thread {
 	double[] frameAggregatedWeights;
 	double[] frameMotionWeights;
 	double[] frameHueWeights;
+	int[] flag = new int[16200];
 	Map<Double, int[]> weightedShots;
 	static final int BLOCK_HEIGHT = 36;
 	static final int BLOCK_WIDTH = 64;
@@ -107,8 +101,9 @@ public class ImageDisplay extends Thread {
 	/**
 	 * Calculate frame differences of every pair of adjacent frames
 	 * divide frames into shots based on frame differences.
+	 * @return
 	 */
-	public void detectShots() {
+	public ArrayList<Integer> detectShots() {
 		try {
 			double frameDiffMean = 0;
 			double maxMotionWeight = 0;
@@ -161,48 +156,88 @@ public class ImageDisplay extends Thread {
 			}
 			boundary.close();
 
-			createWeightedShots();
+			return shotBoundaryIdx;
 
-			int[] flag = new int[16200];
-			FileWriter weights = new FileWriter("./weights.txt");
-			int count = 0;
-			for(Map.Entry entry : weightedShots.entrySet())
-			{
-				if(count >= 2700) break;
-				System.out.println("weights: " + entry.getKey());
-				int[] tmp = weightedShots.get(entry.getKey());
-				weights.write("shot: " + Arrays.toString(tmp) + "  weight: " + entry.getKey() + "\n");
-				for(int i = tmp[0]; i < tmp[1]; i++, count++)
-					flag[i] = 1;
-			}
-			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
-			weights.close();
+//			createWeightedShots();
+//
+//			int[] flag = new int[16200];
+//			FileWriter weights = new FileWriter("./weights.txt");
+//			int count = 0;
+//			for(Map.Entry entry : weightedShots.entrySet())
+//			{
+//				if(count >= 2700) break;
+//				System.out.println("weights: " + entry.getKey());
+//				int[] tmp = weightedShots.get(entry.getKey());
+//				weights.write("shot: " + Arrays.toString(tmp) + "  weight: " + entry.getKey() + "\n");
+//				for(int i = tmp[0]; i < tmp[1]; i++, count++)
+//					flag[i] = 1;
+//			}
+//			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
+//			weights.close();
 
-			long start = System.currentTimeMillis();
-			count = 0;
-			for(int i = 0; i < 16200 && count < 2700; i++)
-			{
-				if(flag[i] == 1)
-				{
-					System.out.println("frame: " + i);
-					lbIm1.setIcon(new ImageIcon(video[i]));
-					frame.pack();
-					frame.setVisible(true);
-
-					long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
-					count++;
-					while (System.currentTimeMillis() < end) {
-
-					}
-				}
-			}
-
-			
+//			long start = System.currentTimeMillis();
+//			count = 0;
+//			for(int i = 0; i < 16200 && count < 2700; i++)
+//			{
+//				if(flag[i] == 1)
+//				{
+//					System.out.println("frame: " + i);
+//					lbIm1.setIcon(new ImageIcon(video[i]));
+//					frame.pack();
+//					frame.setVisible(true);
+//
+//					long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
+//					count++;
+//					while (System.currentTimeMillis() < end) {
+//
+//					}
+//				}
+//			}
 		} catch (Exception e) {
 			// Throwing an exception
 			System.out.println(e.getMessage());
 			e.printStackTrace();
 		}
+		return null;
+	}
+
+	/**
+	 * Combine audio weights and video weights of shots.
+	 *
+	 * @param audioWeights the audio weights of shots
+	 */
+	public ArrayList<Integer> getFinalShots(ArrayList<Double> audioWeights) {
+
+		createWeightedShots(audioWeights);
+		ArrayList<Integer> finalShots = new ArrayList<>();
+
+		try {
+			FileWriter weights = null;
+
+			weights = new FileWriter("./weights.txt");
+
+			int count = 0;
+			for (Map.Entry entry : weightedShots.entrySet()) {
+				if (count >= 2700) break;
+				System.out.println("weights: " + entry.getKey());
+				int[] tmp = weightedShots.get(entry.getKey());
+
+				weights.write("shot: " + Arrays.toString(tmp) + "  weight: " + entry.getKey() + "\n");
+
+				finalShots.add(tmp[0]);
+				finalShots.add(tmp[1]);
+
+				for (int i = tmp[0]; i < tmp[1]; i++, count++)
+					flag[i] = 1;
+			}
+			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
+			weights.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		Collections.sort(finalShots); // return final shots in time order
+		return finalShots;
 	}
 
 	public double getHueWeight(BufferedImage img) {
@@ -219,7 +254,8 @@ public class ImageDisplay extends Thread {
 		return hueSet.size() / 359.0;
 	}
 
-	public void createWeightedShots() {
+	public void createWeightedShots(ArrayList<Double> audioWeights) {
+		int audioWeightsIdx = 0;
 		int preIdx = 0;
 		for(int endIdx : shotBoundaryIdx)
 		{
@@ -233,10 +269,11 @@ public class ImageDisplay extends Thread {
 			int[] tmp = new int[2];
 			tmp[0] = preIdx;
 			tmp[1] = endIdx;
-			double weight = shotWeight / count;
+			double weight = shotWeight / count + audioWeights.get(audioWeightsIdx) * 20; // motion * 70 + hue * 30 + audio * 20
 			weightedShots.put(weight, tmp.clone());
 			//System.out.println(Arrays.toString(weightedShots.get(weight)));
 			preIdx = endIdx;
+			audioWeightsIdx++;
 		}
 	}
 
@@ -440,37 +477,58 @@ public class ImageDisplay extends Thread {
 		return hsv;
 	}
 
+//	public void run() {
+//		try {
+//			long start = System.currentTimeMillis();
+//
+//			// Read in the specified image
+//			for (int i = 0; i < 16200; i++) {
+//				// System.out.println("Frame " + i + " done!");
+//				if (i > 0) {
+//					video[i - 1].flush();
+//					video[i - 1] = null;
+//				}
+//				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+//				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+//				// if (i > 0) {
+//				// detectShots(i);
+//				// }
+//
+//				lbIm1.setIcon(new ImageIcon(video[i]));
+//				frame.pack();
+//				frame.setVisible(true);
+//				// System.out.println("Frame " + i + " showed!");
+//				long end = start + (i / 3) * 100 + (i % 3 == 1 ? 34 : (i % 3 == 2 ? 67 : 0));
+//				while (System.currentTimeMillis() < end) {
+//
+//				}
+//			}
+//		} catch (Exception e) {
+//			// Throwing an exception
+//			System.out.println(e.getMessage());
+//			System.out.println("Exception is caught");
+//		}
+//	}
+
+	// tmp run for testing purpose
 	public void run() {
-		try {
-			long start = System.currentTimeMillis();
-
-			// Read in the specified image
-			for (int i = 0; i < 16200; i++) {
-				// System.out.println("Frame " + i + " done!");
-				if (i > 0) {
-					video[i - 1].flush();
-					video[i - 1] = null;
-				}
-				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
-				// if (i > 0) {
-				// detectShots(i);
-				// }
-
+		long start = System.currentTimeMillis();
+		int count = 0;
+		for(int i = 0; i < 16200 && count < 2700; i++)
+		{
+			if(flag[i] == 1)
+			{
+				System.out.println("frame: " + i);
 				lbIm1.setIcon(new ImageIcon(video[i]));
 				frame.pack();
 				frame.setVisible(true);
-				// System.out.println("Frame " + i + " showed!");
-				long end = start + (i / 3) * 100 + (i % 3 == 1 ? 34 : (i % 3 == 2 ? 67 : 0));
+
+				long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
+				count++;
 				while (System.currentTimeMillis() < end) {
 
 				}
 			}
-		} catch (Exception e) {
-			// Throwing an exception
-			System.out.println(e.getMessage());
-			System.out.println("Exception is caught");
 		}
 	}
-
 }
