@@ -154,6 +154,15 @@ public class ImageDisplay extends Thread {
 					System.out.println((i + 1) + " : " + frameDiffs.get(i));
 				}
 			}
+			for(int i = 1; i < shotBoundaryIdx.size(); i++)
+			{
+				if(shotBoundaryIdx.get(i) - shotBoundaryIdx.get(i - 1) < 10)
+				{
+					shotBoundaryIdx.remove(i);
+					shotBoundaryIdx.remove(i-1);
+					i -= 2;
+				}
+			}
 			boundary.close();
 
 			return shotBoundaryIdx;
@@ -214,7 +223,7 @@ public class ImageDisplay extends Thread {
 		try {
 			FileWriter weights = null;
 
-			weights = new FileWriter("./weights.txt");
+			weights = new FileWriter("./weights_with_audio.txt");
 
 			int count = 0;
 			for (Map.Entry entry : weightedShots.entrySet()) {
@@ -261,7 +270,7 @@ public class ImageDisplay extends Thread {
 		{
 			int count = 0;
 			double shotWeight = 0;
-			for(int i = preIdx; i < endIdx; i++)
+			for(int i = preIdx; i < endIdx - 1; i++)
 			{
 				shotWeight += frameAggregatedWeights[i];
 				count++;
