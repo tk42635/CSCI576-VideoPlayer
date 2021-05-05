@@ -25,6 +25,7 @@ public class ImageDisplay extends Thread {
 	static final int BLOCK_HEIGHT = 36;
 	static final int BLOCK_WIDTH = 64;
 	static final int SEARCH_RADIUS = 6;
+	static final double PI = 3.1415926535897;
 
 	String videodir;
 
@@ -32,17 +33,15 @@ public class ImageDisplay extends Thread {
 	 * Read Image RGB Reads the image of given width and height at the given imgPath
 	 * into the provided BufferedImage.
 	 */
-	private void readImageRGB(int width, int height, String path, BufferedImage img1) {
+	private byte[] readImageRGB(int width, int height, String path, BufferedImage img1) {
+		int frameLength = width * height * 3;
+		long len = frameLength;
+		byte[] bytes = new byte[(int) len];
 		try {
-			int frameLength = width * height * 3;
-
 			Path p1 = Paths.get(path);
 			File file = new File(p1.toString());
 			RandomAccessFile raf = new RandomAccessFile(file, "r");
 			raf.seek(0);
-
-			long len = frameLength;
-			byte[] bytes = new byte[(int) len];
 
 			raf.read(bytes);
 
@@ -60,12 +59,12 @@ public class ImageDisplay extends Thread {
 				}
 			}
 			raf.close();
-
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		return bytes;
 	}
 
 	public void initialize(String videodir) {
@@ -101,6 +100,8 @@ public class ImageDisplay extends Thread {
 	public void detectShots() {
 		try {
 			double frameDiffMean = 0;
+//			byte[] prevFrameBytes;
+//			byte[] currFrameBytes = new byte[width * height * 3];
 			for (int i = 0; i < 16200; i++) {
 				if (i > 1) {
 					// avoid out of memory error
@@ -108,7 +109,9 @@ public class ImageDisplay extends Thread {
 					video[i - 2] = null;
 				}
 				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+				byte[] res = readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+//				prevFrameBytes = currFrameBytes;
+//				currFrameBytes = res;
 
 				if (i > 0) {
 					// int frameDiff = calcFrameDiff(i);
@@ -129,7 +132,7 @@ public class ImageDisplay extends Thread {
 			frameDiffStandardDeviation = (long) Math.sqrt(frameDiffStandardDeviation / 16199.0);
 
 
-			double threshold = frameDiffMean + 2 * frameDiffStandardDeviation;
+			double threshold = frameDiffMean + 3 * frameDiffStandardDeviation;
 			System.out.println("threshold: " + threshold);
 			for (int i = 0; i < frameDiffs.size(); i++) {
 				if (frameDiffs.get(i) > threshold) {
@@ -217,24 +220,145 @@ public class ImageDisplay extends Thread {
 	public int calcFrameHistogramDiff(int currFrameIdx) {
 		int frameDiff = 0;
 
-		int[][] prevFrameHistograms = calcFrameRGBHistograms(currFrameIdx - 1);
-		int[][] currFrameHistograms = calcFrameRGBHistograms(currFrameIdx);
+		/**
+		 * Remove illumination effect using DCT-IDCT (More than 2 hours)
+		 * Reference: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.682.5851&rep=rep1&type=pdf
+		 */
+//		double[] prevFrameDCTCoeffs = DCT(prevFrameBytes);
+//		IDCT(prevFrameDCTCoeffs, prevFrameBytes);
+//		updateFrame(prevFrameBytes, currFrameIdx - 1);
+//
+//		double[] currFrameDCTCoeffs = DCT(currFrameBytes);
+//		IDCT(currFrameDCTCoeffs, currFrameBytes);
+//		updateFrame(currFrameBytes, currFrameIdx);
 
-//		int[] prevFrameHistograms = calcFrameHSVHistograms(currFrameIdx - 1);
-//		int[] currFrameHistograms = calcFrameHSVHistograms(currFrameIdx);
+//		int[][] prevFrameHistograms = calcFrameRGBHistograms(currFrameIdx - 1);
+//		int[][] currFrameHistograms = calcFrameRGBHistograms(currFrameIdx);
 
-		for (int component = 0; component < 3; component++) {
-			for (int bin = 0; bin < 8; bin++) {
-				frameDiff += Math.abs(currFrameHistograms[component][bin]
-										- prevFrameHistograms[component][bin]);
+		int[] prevFrameHistograms = calcFrameHSVHistograms(currFrameIdx - 1);
+		int[] currFrameHistograms = calcFrameHSVHistograms(currFrameIdx);
+
+//		for (int component = 0; component < 3; component++) {
+//			for (int bin = 0; bin < 8; bin++) {
+//				frameDiff += Math.abs(currFrameHistograms[component][bin]
+//										- prevFrameHistograms[component][bin]);
+//			}
+//		}
+
+		for (int hue = 0; hue <= 360; hue++) {
+			frameDiff += Math.abs(currFrameHistograms[hue] - prevFrameHistograms[hue]);
+		}
+
+		return frameDiff;
+	}
+
+	private double[] DCT(byte[] bytesDCT) {
+		double[] dctCoeff = new double[width * height * 3];
+		double Cu = 1;
+		double Cv = 1;
+
+		for (int u = 0; u < height - 4; u++) {
+			if (u % 8 == 0) {
+				Cu = 1 / Math.sqrt(2);
+			} else {
+				Cu = 1;
+			}
+
+			for (int v = 0; v < width; v++) {
+				if (v % 8 == 0) {
+					Cv = 1 / Math.sqrt(2);
+				} else {
+					Cv = 1;
+				}
+
+				int xStart = (u / 8) * 8;
+				int xEnd = xStart + 8;
+				int yStart = (v / 8) * 8;
+				int yEnd = yStart + 8;
+
+				for (int i = 0; i <= 2; i++) {
+					double sum = 0;
+					int offset = width * height * i; // r, g, b offset
+
+					for (int x = xStart; x < xEnd; x++) {
+						for (int y = yStart; y < yEnd; y++) {
+							int idx = x * width + y;
+							int base = bytesDCT[idx + offset] & 0xff;
+							sum += base * Math.cos(((2 * (x - xStart) + 1) * (u % 8) * PI) / 16)
+									* Math.cos(((2 * (y - yStart) + 1) * (v % 8) * PI) / 16);
+						}
+					}
+
+					if (!(v % 8 == 0 && u % 8 == 0)) {
+						// Reference: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.682.5851&rep=rep1&type=pdf
+						// (0, 0) coeff remains 0 to remove illumination effect
+						dctCoeff[u * width + v + offset] = (1 / 4.0) * Cu * Cv * sum;
+					}
+				}
 			}
 		}
 
-//		for (int hue = 0; hue <= 360; hue++) {
-//			frameDiff += Math.abs(currFrameHistograms[hue] - prevFrameHistograms[hue]);
-//		}
+		return dctCoeff;
+	}
 
-		return frameDiff;
+	private void IDCT(double[] dctCoeff, byte[] frameBytes) {
+		for (int x = 0; x < height - 4; x++) { // height is not divisible by 8
+ 			int uStart = (x / 8) * 8;
+			int uEnd = uStart + 8;
+
+			for (int y = 0; y < width; y++) {
+				int vStart = (y / 8) * 8;
+				int vEnd = vStart + 8;
+
+				for (int i = 0; i <= 2; i++) {
+					double sum = 0;
+					int offset = width * height * i; // r, g, b offset
+					double Cu = 1;
+					double Cv = 1;
+
+					for (int u = uStart; u < uEnd; u++) {
+						if (u == uStart) {
+							Cu = 1 / Math.sqrt(2);
+						} else {
+							Cu = 1;
+						}
+						for (int v = vStart; v < vEnd; v++) {
+							if (v == vStart) {
+								Cv = 1 / Math.sqrt(2);
+							} else {
+								Cv = 1;
+							}
+							int idx = u * width + v;
+							double base = dctCoeff[idx + offset];
+							sum += Cu * Cv * base * Math.cos(((2 * (x % 8) + 1) * (u - uStart) * PI) / 16)
+									* Math.cos(((2 * (y % 8) + 1) * (v - vStart) * PI) / 16);
+						}
+					}
+
+					// int to byte
+					int val = ((int) Math.round(sum / 4));
+					val = Math.min(255, val);
+					val = Math.max(0, val);
+					frameBytes[x * width + y + offset] = (byte) val;
+				}
+			}
+		}
+	}
+
+	private void updateFrame(byte[] frameBytes, int frameIdx) {
+		int ind = 0;
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				byte r = frameBytes[ind];
+				byte g = frameBytes[ind + height * width];
+				byte b = frameBytes[ind + height * width * 2];
+
+				int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
+				// int pix = ((a << 24) + (r << 16) + (g << 8) + b);
+				video[frameIdx].setRGB(x, y, pix);
+				ind++;
+			}
+		}
 	}
 
 	/**
@@ -282,7 +406,7 @@ public class ImageDisplay extends Thread {
 
 	public int[] calcFrameHSVHistograms(int frameIdx) {
 		BufferedImage frame = video[frameIdx];
-		int[] histograms = new int[360];
+		int[] histograms = new int[361];
 
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
