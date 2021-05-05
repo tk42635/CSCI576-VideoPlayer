@@ -1,17 +1,10 @@
-
+import javax.swing.*;
 import java.awt.*;
-import java.awt.image.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-
-import javax.lang.model.util.ElementScanner6;
-import javax.swing.*;
-import javax.swing.tree.DefaultTreeCellEditor;
-
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 
 public class ImageDisplay extends Thread {
 
@@ -22,6 +15,12 @@ public class ImageDisplay extends Thread {
 	int height = 180;
 
 	ArrayList<Integer> frameDiffs;
+	ArrayList<Integer> shotBoundaryIdx;
+	double[] frameAggregatedWeights;
+	double[] frameMotionWeights;
+	double[] frameHueWeights;
+	int[] flag = new int[16200];
+	Map<Double, int[]> weightedShots;
 	static final int BLOCK_HEIGHT = 36;
 	static final int BLOCK_WIDTH = 64;
 	static final int SEARCH_RADIUS = 6;
@@ -90,35 +89,68 @@ public class ImageDisplay extends Thread {
 		video = new BufferedImage[16200];
 		this.videodir = videodir;
 
+		shotBoundaryIdx = new ArrayList<>();
 		frameDiffs = new ArrayList<>();
+		frameAggregatedWeights = new double[16199];
+		frameMotionWeights = new double[16199];
+		frameHueWeights = new double[16199];
+		weightedShots = new TreeMap<>(Collections.reverseOrder());
 	}
 
 	/**
 	 * Calculate frame differences of every pair of adjacent frames
 	 * divide frames into shots based on frame differences.
+	 * @return
 	 */
-	public void detectShots() {
+	public ArrayList<Integer> detectShots() {
 		try {
 			double frameDiffMean = 0;
-//			byte[] prevFrameBytes;
-//			byte[] currFrameBytes = new byte[width * height * 3];
+
+			// needed for DCT/IDCT
+			byte[] prevFrameBytes;
+			byte[] currFrameBytes = new byte[width * height * 3];
+
+			double maxMotionWeight = 0;
+
 			for (int i = 0; i < 16200; i++) {
 				if (i > 1) {
 					// avoid out of memory error
 					video[i - 2].flush();
-					video[i - 2] = null;
+					//video[i - 2] = null;
 				}
 				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-				byte[] res = readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
-//				prevFrameBytes = currFrameBytes;
-//				currFrameBytes = res;
+				byte[] frameBytes = readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+
+				prevFrameBytes = currFrameBytes;
+				currFrameBytes = frameBytes;
 
 				if (i > 0) {
 					// int frameDiff = calcFrameDiff(i);
-					int frameDiff = calcFrameHistogramDiff(i);
-					frameDiffMean += frameDiff;
-					frameDiffs.add(frameDiff);
+					/**
+					 * Remove illumination effect using DCT-IDCT (More than 2 hours)
+					 * Reference: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.682.5851&rep=rep1&type=pdf
+					 */
+					double[] prevFrameDCTCoeffs = DCT(prevFrameBytes);
+					IDCT(prevFrameDCTCoeffs, prevFrameBytes);
+					updateFrame(prevFrameBytes, i - 1);
+
+					double[] currFrameDCTCoeffs = DCT(currFrameBytes);
+					IDCT(currFrameDCTCoeffs, currFrameBytes);
+					updateFrame(currFrameBytes, i);
+
+					int[] res = calcFrameDiffBasedOnBlocks(i);
+					frameDiffMean += res[0];
+					frameDiffs.add(res[0]);
+					maxMotionWeight = Math.max(maxMotionWeight, res[1]);
+					frameMotionWeights[i-1] = (double)res[1];
+					frameHueWeights[i-1] = getHueWeight(video[i]);
 				}
+			}
+
+			for(int i = 0;  i < 16199; i++)
+			{
+				frameMotionWeights[i] /= maxMotionWeight;
+				frameAggregatedWeights[i] = frameMotionWeights[i] * 70 + frameHueWeights[i] * 30;
 			}
 
 			// Divide frames into shots based on frame diff;
@@ -134,15 +166,143 @@ public class ImageDisplay extends Thread {
 
 			double threshold = frameDiffMean + 3 * frameDiffStandardDeviation;
 			System.out.println("threshold: " + threshold);
+			FileWriter boundary = new FileWriter("./boundary.txt");
 			for (int i = 0; i < frameDiffs.size(); i++) {
 				if (frameDiffs.get(i) > threshold) {
-					System.out.println(i + " : " + frameDiffs.get(i));
+					shotBoundaryIdx.add(i + 1);
+					boundary.write((i + 1) + "\n");
+					System.out.println((i + 1) + " : " + frameDiffs.get(i));
 				}
 			}
+			for(int i = 1; i < shotBoundaryIdx.size(); i++)
+			{
+				if(shotBoundaryIdx.get(i) - shotBoundaryIdx.get(i - 1) < 10)
+				{
+					shotBoundaryIdx.remove(i);
+					shotBoundaryIdx.remove(i-1);
+					i -= 2;
+				}
+			}
+			boundary.close();
 
+			return shotBoundaryIdx;
+
+//			createWeightedShots();
+//
+//			int[] flag = new int[16200];
+//			FileWriter weights = new FileWriter("./weights.txt");
+//			int count = 0;
+//			for(Map.Entry entry : weightedShots.entrySet())
+//			{
+//				if(count >= 2700) break;
+//				System.out.println("weights: " + entry.getKey());
+//				int[] tmp = weightedShots.get(entry.getKey());
+//				weights.write("shot: " + Arrays.toString(tmp) + "  weight: " + entry.getKey() + "\n");
+//				for(int i = tmp[0]; i < tmp[1]; i++, count++)
+//					flag[i] = 1;
+//			}
+//			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
+//			weights.close();
+
+//			long start = System.currentTimeMillis();
+//			count = 0;
+//			for(int i = 0; i < 16200 && count < 2700; i++)
+//			{
+//				if(flag[i] == 1)
+//				{
+//					System.out.println("frame: " + i);
+//					lbIm1.setIcon(new ImageIcon(video[i]));
+//					frame.pack();
+//					frame.setVisible(true);
+//
+//					long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
+//					count++;
+//					while (System.currentTimeMillis() < end) {
+//
+//					}
+//				}
+//			}
 		} catch (Exception e) {
 			// Throwing an exception
 			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	/**
+	 * Combine audio weights and video weights of shots.
+	 *
+	 * @param audioWeights the audio weights of shots
+	 */
+	public ArrayList<Integer> getFinalShots(ArrayList<Double> audioWeights) {
+
+		createWeightedShots(audioWeights);
+		ArrayList<Integer> finalShots = new ArrayList<>();
+
+		try {
+			FileWriter weights = null;
+
+			weights = new FileWriter("./weights_with_audio.txt");
+
+			int count = 0;
+			for (Map.Entry entry : weightedShots.entrySet()) {
+				if (count >= 2700) break;
+				System.out.println("weights: " + entry.getKey());
+				int[] tmp = weightedShots.get(entry.getKey());
+
+				weights.write("shot: " + Arrays.toString(tmp) + "  weight: " + entry.getKey() + "\n");
+
+				finalShots.add(tmp[0]);
+				finalShots.add(tmp[1]);
+
+				for (int i = tmp[0]; i < tmp[1]; i++, count++)
+					flag[i] = 1;
+			}
+			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
+			weights.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		Collections.sort(finalShots); // return final shots in time order
+		return finalShots;
+	}
+
+	public double getHueWeight(BufferedImage img) {
+		Set<Integer> hueSet = new HashSet<>();
+		for(int x = 0; x < width; x++)
+			for(int y = 0; y < height; y++)
+			{
+				int RGB = img.getRGB(x, y);
+				float[] hsbvals = new float[3];
+				Color.RGBtoHSB((RGB >> 16) & 0xff, (RGB >> 8) & 0xff, RGB & 0xff, hsbvals);
+				hueSet.add((int)((hsbvals[0] - (float)Math.floor(hsbvals[0])) * 360.0f));
+			}
+
+		return hueSet.size() / 359.0;
+	}
+
+	public void createWeightedShots(ArrayList<Double> audioWeights) {
+		int audioWeightsIdx = 0;
+		int preIdx = 0;
+		for(int endIdx : shotBoundaryIdx)
+		{
+			int count = 0;
+			double shotWeight = 0;
+			for(int i = preIdx; i < endIdx - 1; i++)
+			{
+				shotWeight += frameAggregatedWeights[i];
+				count++;
+			}
+			int[] tmp = new int[2];
+			tmp[0] = preIdx;
+			tmp[1] = endIdx;
+			double weight = shotWeight / count + audioWeights.get(audioWeightsIdx) * 20; // motion * 70 + hue * 30 + audio * 20
+			weightedShots.put(weight, tmp.clone());
+			//System.out.println(Arrays.toString(weightedShots.get(weight)));
+			preIdx = endIdx;
+			audioWeightsIdx++;
 		}
 	}
 
@@ -154,12 +314,14 @@ public class ImageDisplay extends Thread {
 	 *
 	 * @param currFrameIdx the current frame index
 	 * @return the absolute difference between currFrame and prevFrame
+	 * 			the sum of motion vectors' magnitude of all blocks in this frame
 	 */
-	public int calcFrameDiffBasedOnBlocks(int currFrameIdx) {
+	public int[] calcFrameDiffBasedOnBlocks(int currFrameIdx) {
 		BufferedImage prevFrame = video[currFrameIdx - 1];
 		BufferedImage currFrame = video[currFrameIdx];
 
 		int frameDiff = 0;
+		int frameVectorSum = 0;
 
 		// Traverse every block in the curr frame
 		// x1, y1: the top left coordinate of a block in the curr frame
@@ -167,7 +329,7 @@ public class ImageDisplay extends Thread {
 			for (int x1 = 0; x1 + BLOCK_WIDTH < width; x1 += BLOCK_WIDTH) {
 
 				int minBlockDiff = Integer.MAX_VALUE;
-
+				int minVectorMag = 0;
 				// Calc the difference between a given block in the curr frame and candidate blocks in the prev frame
 				// x0, y0: the top left coordinate of a block in the prev frame
 				for (int y0 = y1 - SEARCH_RADIUS; y0 <= y1 + SEARCH_RADIUS; y0++) {
@@ -194,17 +356,22 @@ public class ImageDisplay extends Thread {
 								+ Math.abs(currRed - prevRed);
 							}
 						}
-
-						minBlockDiff = Math.min(minBlockDiff, blockDiff);
+						if(blockDiff < minBlockDiff)
+						{
+							minBlockDiff = blockDiff;
+							minVectorMag = (int)Math.sqrt(Math.pow(x1-x0, 2) + Math.pow(y1-y0, 2));
+						}
 					}
 				}
-
+				frameVectorSum += minVectorMag;
 				frameDiff += minBlockDiff;
 			}
 		}
-
+		int[] res = new int[2];
+		res[0] = frameDiff;
+		res[1] = frameVectorSum;
 		// System.out.println(frameDiff);
-		return frameDiff;
+		return res;
 	}
 
 	/**
@@ -460,37 +627,58 @@ public class ImageDisplay extends Thread {
 		return hsv;
 	}
 
+//	public void run() {
+//		try {
+//			long start = System.currentTimeMillis();
+//
+//			// Read in the specified image
+//			for (int i = 0; i < 16200; i++) {
+//				// System.out.println("Frame " + i + " done!");
+//				if (i > 0) {
+//					video[i - 1].flush();
+//					video[i - 1] = null;
+//				}
+//				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+//				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+//				// if (i > 0) {
+//				// detectShots(i);
+//				// }
+//
+//				lbIm1.setIcon(new ImageIcon(video[i]));
+//				frame.pack();
+//				frame.setVisible(true);
+//				// System.out.println("Frame " + i + " showed!");
+//				long end = start + (i / 3) * 100 + (i % 3 == 1 ? 34 : (i % 3 == 2 ? 67 : 0));
+//				while (System.currentTimeMillis() < end) {
+//
+//				}
+//			}
+//		} catch (Exception e) {
+//			// Throwing an exception
+//			System.out.println(e.getMessage());
+//			System.out.println("Exception is caught");
+//		}
+//	}
+
+	// tmp run for testing purpose
 	public void run() {
-		try {
-			long start = System.currentTimeMillis();
-
-			// Read in the specified image
-			for (int i = 0; i < 16200; i++) {
-				// System.out.println("Frame " + i + " done!");
-				if (i > 0) {
-					video[i - 1].flush();
-					video[i - 1] = null;
-				}
-				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
-				// if (i > 0) {
-				// detectShots(i);
-				// }
-
+		long start = System.currentTimeMillis();
+		int count = 0;
+		for(int i = 0; i < 16200 && count < 2700; i++)
+		{
+			if(flag[i] == 1)
+			{
+				System.out.println("frame: " + i);
 				lbIm1.setIcon(new ImageIcon(video[i]));
 				frame.pack();
 				frame.setVisible(true);
-				// System.out.println("Frame " + i + " showed!");
-				long end = start + (i / 3) * 100 + (i % 3 == 1 ? 34 : (i % 3 == 2 ? 33 : 0));
+
+				long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
+				count++;
 				while (System.currentTimeMillis() < end) {
 
 				}
 			}
-		} catch (Exception e) {
-			// Throwing an exception
-			System.out.println(e.getMessage());
-			System.out.println("Exception is caught");
 		}
 	}
-
 }
