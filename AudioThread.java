@@ -6,11 +6,11 @@ import java.io.InputStream;
 
 public class AudioThread extends Thread {
 
-   private final int EXTERNAL_BUFFER_SIZE = 524288; // 128Kb
-   //private final int EXTERNAL_BUFFER_SIZE = 9600;
+   //private final int EXTERNAL_BUFFER_SIZE = 524288; // 128Kb
+   private final int EXTERNAL_BUFFER_SIZE = 9600;
 
    AVPlayer avPlayer;
-   private InputStream waveStream;
+   private final InputStream waveStream;
    private SourceDataLine dataLine;
    private AudioInputStream audioInputStream;
 
@@ -41,6 +41,7 @@ public class AudioThread extends Thread {
          //System.out.println(dataLine.getFormat());
          //System.out.println(dataLine.getBufferSize()); // 192000
          dataLine.open(audioFormat, this.EXTERNAL_BUFFER_SIZE);
+         //dataLine.open(audioFormat, 9600);
       } catch (LineUnavailableException e1) {
          throw new PlayWaveException(e1);
       }
@@ -60,18 +61,18 @@ public class AudioThread extends Thread {
 
             while (readBytes != -1) {
                if (avPlayer.status == 1) {
-                  dataLine.start();
-                  int availableNum = dataLine.available();
-                  readBytes = audioInputStream.read(audioBuffer, 0, availableNum);
-
+                  //dataLine.start();
+                  //int availableNum = dataLine.available();
+                  //readBytes = audioInputStream.read(audioBuffer, 0, availableNum);
+                  readBytes = audioInputStream.read(audioBuffer, 0, audioBuffer.length);
                   if (readBytes > 0) {
                      dataLine.write(audioBuffer, 0, readBytes);
                   }
                } else if (avPlayer.status == 0) {
-                  dataLine.stop();
+                  //dataLine.stop();
                   Thread.sleep(1);
                } else {
-                  dataLine.stop();
+                  //dataLine.stop();
                   return;
                }
             }

@@ -77,7 +77,7 @@ public class CreateWaveFile {
          while (readBytes != -1) {
             readBytes = audioInputStream.read(audioBuffer, 0, audioBuffer.length);
             if (readBytes >= 0) {
-               for (int i = 1; i < readBytes; i += 2) { // Each sample is 2 bytes
+               for (int i = 1; i < readBytes; i += 2) { // Each channel sample is 2 bytes
 
                   if ((currByte > lastByte) && (count < finalShots.size())) {
                      System.out.println("Writing Audio..." + Math.round(100 * (double) currByte / (double) totalFileBytes) + "%");
@@ -99,8 +99,10 @@ public class CreateWaveFile {
             }
          }
 
+         System.out.println("Audio Total Bytes: " + totalBytes);
          int minutes = (int) Math.floor((double) totalBytes / (bytesPerSecond * 60.0));
          int seconds = (int) Math.floor(((double) totalBytes / bytesPerSecond) - 60.0 * minutes);
+         System.out.print("Audio Total Time: ");
          if (seconds < 10) {
             System.out.println(minutes + ":0" + seconds);
          } else {

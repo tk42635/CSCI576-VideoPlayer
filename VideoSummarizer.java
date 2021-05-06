@@ -1,5 +1,3 @@
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -15,6 +13,8 @@ public class VideoSummarizer {
       videoDir = args[0];
       audioDir = args[1];
 
+      System.out.println("VideoSummarizer is now working...");
+
       ImageDisplay ren = new ImageDisplay();
       ren.initialize(args[0]);
 
@@ -29,19 +29,22 @@ public class VideoSummarizer {
       breaks.add(16200);
       for (int i : breaks)
          System.out.print(i + " ");
-
        */
 
+      System.out.println("Working to detect shots...");
       ArrayList<Integer> breaks = ren.detectShots();
       breaks.add(16200);
+
+      System.out.println("Detection finished, working to generate audio weights...");
       AudioAnalyze audioAnalyze = new AudioAnalyze(audioDir);
       ArrayList<Double> audioWeights = audioAnalyze.getAudioWeights(breaks);
-      System.out.println();
-      System.out.print("audioWeights: ");
-      for (double i : audioWeights)
-         System.out.print(i + " ");
-      System.out.println();
 
+//      System.out.print("audioWeights: ");
+//      for (double i : audioWeights)
+//         System.out.print(i + " ");
+//      System.out.println();
+
+      System.out.println("Working to select final shots...");
       ArrayList<Integer> finalShots = ren.getFinalShots(audioWeights);
       //Mock finalShots
       //ArrayList<Integer> finalShots = new ArrayList<>(Arrays.asList(0, 120, 1200, 1320));
@@ -49,32 +52,27 @@ public class VideoSummarizer {
       CreateWaveFile createWaveFile = new CreateWaveFile(audioDir);
       createWaveFile.writeNewWavFile(finalShots);
 
-      FileInputStream inputStream;
-      try {
-         inputStream = new FileInputStream("outputAudio.wav");
-         // inputStream = this.getClass().getResourceAsStream(filename);
-      } catch (FileNotFoundException e) {
-         e.printStackTrace();
-         return;
+      //Mock Final Frames for testing
+      /*
+      int[] flag = new int[16200];
+      // tmp for test
+      BufferedReader in = new BufferedReader(new FileReader("./tmpFrames.txt"));
+      String str;
+
+      while ((str = in.readLine()) != null) {
+         int frame = Integer.valueOf(str);
+         flag[frame] = 1;
       }
+      ren.setFlag(flag);
+       */
 
-      // initializes the playSound Object
-      PlaySound playSound = new PlaySound(inputStream);
-      // plays the sound
-      try {
-         playSound.play();
-      } catch (PlayWaveException e) {
-         e.printStackTrace();
-         return;
-      }
+      AVPlayer avPlayer = new AVPlayer();
 
-      // temporarily changed ImageDisplay.run() to play the newly generated video
-      ren.start();
-      playSound.start();
+//      for (int i : ren.getFlag()) {
+//         System.out.println(i);
+//      }
 
-//      String[] args2 = {"../project_dataset/frames_rgb/soccer/", "outputAudio.wav"};
-//      AVPlayer.main(args2);
-
+      avPlayer.playSummaryVideo(args[0], "outputAudio.wav", ren.getFlag(), ren.getNumOfFinalFrames());
    }
 
 }

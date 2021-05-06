@@ -26,6 +26,7 @@ public class ImageDisplay extends Thread {
 	static final int SEARCH_RADIUS = 6;
 
 	String videodir;
+	int numOfFinalFrames;
 
 	/**
 	 * Read Image RGB Reads the image of given width and height at the given imgPath
@@ -227,7 +228,10 @@ public class ImageDisplay extends Thread {
 
 			int count = 0;
 			for (Map.Entry entry : weightedShots.entrySet()) {
-				if (count >= 2700) break;
+				if (count >= 2700) {
+					numOfFinalFrames = count;
+					break;
+				}
 				System.out.println("weights: " + entry.getKey());
 				int[] tmp = weightedShots.get(entry.getKey());
 
@@ -519,18 +523,31 @@ public class ImageDisplay extends Thread {
 //		}
 //	}
 
-	// tmp run for testing purpose
+	// Deprecated, tmp run method for testing purpose
 	public void run() {
 		long start = System.currentTimeMillis();
 		int count = 0;
-		for(int i = 0; i < 16200 && count < 2700; i++)
-		{
+
+		numOfFinalFrames = 2730;
+		System.out.println();
+		System.out.println("numOfFinalFrames: " + numOfFinalFrames);
+
+		for (int i = 0; i < 16200 && count < numOfFinalFrames; i++)  {
 			if(flag[i] == 1)
 			{
-				System.out.println("frame: " + i);
+//				if (i > 1) {
+//					video[i - 1].flush();
+//					video[i - 1] = null;
+//				}
+				video[i] = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+				readImageRGB(width, height, videodir + "frame" + i + ".rgb", video[i]);
+
+
+				//System.out.println("frame: " + i);
 				lbIm1.setIcon(new ImageIcon(video[i]));
 				frame.pack();
 				frame.setVisible(true);
+				frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
 				long end = start + (count / 3) * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0));
 				count++;
@@ -539,5 +556,17 @@ public class ImageDisplay extends Thread {
 				}
 			}
 		}
+	}
+
+	public void setFlag(int[] flag) {
+		this.flag = flag;
+	}
+
+	public int[] getFlag() {
+		return this.flag;
+	}
+
+	public int getNumOfFinalFrames() {
+		return this.numOfFinalFrames;
 	}
 }
