@@ -31,19 +31,6 @@ public class VideoSummarizer {
       ImageDisplay ren = new ImageDisplay();
       ren.initialize(args[0]);
 
-      // tmp code for testing purpose
-      /*
-      ArrayList<Integer> breaks = new ArrayList<>();
-      BufferedReader in = new BufferedReader(new FileReader("./boundary.txt"));
-      String str;
-      while ((str = in.readLine()) != null) {
-         breaks.add(Integer.valueOf(str));
-      }
-      breaks.add(16200);
-      for (int i : breaks)
-         System.out.print(i + " ");
-       */
-
       System.out.println("Working to detect shots...");
       ArrayList<Integer> breaks = ren.detectShots();
       breaks.add(TOTAL_FRAMES);
@@ -52,32 +39,11 @@ public class VideoSummarizer {
       AudioAnalyze audioAnalyze = new AudioAnalyze(audioDir);
       ArrayList<Double> audioWeights = audioAnalyze.getAudioWeights(breaks);
 
-//      System.out.print("audioWeights: ");
-//      for (double i : audioWeights)
-//         System.out.print(i + " ");
-//      System.out.println();
-
       System.out.println("Working to select final shots...");
       ArrayList<Integer> finalShots = ren.getFinalShots(audioWeights);
-      //Mock finalShots
-      //ArrayList<Integer> finalShots = new ArrayList<>(Arrays.asList(0, 120, 1200, 1320));
-
+      
       CreateWaveFile createWaveFile = new CreateWaveFile(audioDir);
       String audioFile = createWaveFile.writeNewWavFile(finalShots);
-
-      //Mock Final Frames for testing
-      /*
-      int[] flag = new int[16200];
-      // tmp for test
-      BufferedReader in = new BufferedReader(new FileReader("./tmpFrames.txt"));
-      String str;
-
-      while ((str = in.readLine()) != null) {
-         int frame = Integer.valueOf(str);
-         flag[frame] = 1;
-      }
-      ren.setFlag(flag);
-       */
 
       AVPlayer avPlayer = new AVPlayer();
       avPlayer.playSummaryVideo(args[0], audioFile, ren.getFlag(), ren.getNumOfFinalFrames());
