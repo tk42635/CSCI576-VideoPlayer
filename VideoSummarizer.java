@@ -59,7 +59,7 @@ public class VideoSummarizer {
       //ArrayList<Integer> finalShots = new ArrayList<>(Arrays.asList(0, 120, 1200, 1320));
 
       CreateWaveFile createWaveFile = new CreateWaveFile(audioDir);
-      createWaveFile.writeNewWavFile(finalShots);
+      String audioFile = createWaveFile.writeNewWavFile(finalShots);
 
       //Mock Final Frames for testing
       /*
@@ -81,7 +81,7 @@ public class VideoSummarizer {
 //         System.out.println(i);
 //      }
 
-      avPlayer.playSummaryVideo(args[0], "outputAudio_2.wav", ren.getFlag(), ren.getNumOfFinalFrames());
+      avPlayer.playSummaryVideo(args[0], audioFile, ren.getFlag(), ren.getNumOfFinalFrames());
    }
 
    public static void playExistedFile(int testID) throws PlayWaveException, IOException {
