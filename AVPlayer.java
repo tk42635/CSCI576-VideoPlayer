@@ -22,7 +22,7 @@ public class AVPlayer {
    AudioThread audioThread;
    ImageThread imageThread;
    int status = 2;
-   long startTime;
+   public long startTime;
    int numOfFinalFrames = 16200;
 
    public static void main(String[] args) {

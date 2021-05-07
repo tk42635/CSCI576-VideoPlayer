@@ -80,6 +80,7 @@ public class ImageThread extends Thread {
       try {
          Thread.sleep(100);
          long start = System.currentTimeMillis();
+         avPlayer.startTime = start;
          int pausedFrame = 0;
          int count = 0;
 
@@ -103,7 +104,7 @@ public class ImageThread extends Thread {
                   int j = count - pausedFrame;
 
                   //System.out.println(System.currentTimeMillis());
-                  long end = start + (j / 3) * 100 + (j % 3 == 1 ? 34 : (j % 3 == 2 ? 67 : 0));
+                  long end = avPlayer.startTime + (j / 3) * 100 + (j % 3 == 1 ? 34 : (j % 3 == 2 ? 67 : 0));
             
                   while (System.currentTimeMillis() < end) { //for synchronization
 

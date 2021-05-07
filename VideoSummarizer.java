@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.Arrays;
 import java.io.File;
 
 import javax.lang.model.util.ElementScanner6;
@@ -8,15 +9,18 @@ import javax.lang.model.util.ElementScanner6;
 public class VideoSummarizer {
    static String videoDir;
    static String audioDir;
+   static final int TOTAL_FRAMES = 16200;
 
    public static void main(String[] args) throws PlayWaveException, IOException {
-      if(args.length == 1)
+      if(args.length == 3)
       {
-         playExistedFile(Integer.valueOf(args[0]));
+         playExistedFile(args[0], args[1], args[2]);
          return;
       }
       if (args.length < 2) {
-         System.err.println("usage: java VideoSummarizer [VideoFileDirectory(.rgb)] [AudioFile]");
+         System.err.println("Generate a summary and play: java VideoSummarizer [VideoFileDirectory(.rgb)] [AudioFile]");
+         System.err.println("Play a video on .rgb directory: java VideoSummarizer [VideoFileDirectory(.rgb)] [AudioFile] 0");
+         System.err.println("Play a summary video on .txt frame file: java VideoSummarizer [VideoFileDirectory(.rgb)] [GeneratedAudioFile] [VideoFrameLabel(.txt)]");
          return;
       }
       videoDir = args[0];
@@ -42,7 +46,7 @@ public class VideoSummarizer {
 
       System.out.println("Working to detect shots...");
       ArrayList<Integer> breaks = ren.detectShots();
-      breaks.add(16200);
+      breaks.add(TOTAL_FRAMES);
 
       System.out.println("Detection finished, working to generate audio weights...");
       AudioAnalyze audioAnalyze = new AudioAnalyze(audioDir);
@@ -76,43 +80,27 @@ public class VideoSummarizer {
        */
 
       AVPlayer avPlayer = new AVPlayer();
-
-//      for (int i : ren.getFlag()) {
-//         System.out.println(i);
-//      }
-
       avPlayer.playSummaryVideo(args[0], audioFile, ren.getFlag(), ren.getNumOfFinalFrames());
    }
 
-   public static void playExistedFile(int testID) throws PlayWaveException, IOException {
-      int[] flag = new int[16200];
+   public static void playExistedFile(String videoDir, String audioFile, String txtFile) throws PlayWaveException, IOException {
+      int[] flag = new int[TOTAL_FRAMES];
       int numFinalFrames = 0;
-      String videoDir, audioFile;
-      Scanner in;
-      if(testID == 1)
+      if(!txtFile.equals("0"))
       {
-         in = new Scanner(new File("./test_frames_1.txt"));
-         videoDir = "D:/MyDownloads/Download/test_data/test_data/frames_rgb_test/test_video/";
-         audioFile = "./outputAudio_1.wav";
-      }
-      else if(testID == 2)
-      {
-         in = new Scanner(new File("./test_frames_2.txt"));
-         videoDir = "D:/MyDownloads/Download/test_data_3/test_data_3/frames_rgb_test/test_video_3/";
-         audioFile = "./outputAudio_2.wav";
+         Scanner in = new Scanner(new File(txtFile));
+         while(in.hasNextInt())
+         {
+            flag[in.nextInt()] = 1;
+            numFinalFrames++;
+         }
       }
       else
       {
-         System.err.println("No such video file!");
-         return;
-      }
-      while(in.hasNextInt())
-      {
-         flag[in.nextInt()] = 1;
-         numFinalFrames++;
+         Arrays.fill(flag, 1);
+         numFinalFrames = TOTAL_FRAMES;
       }
       AVPlayer avPlayer = new AVPlayer();
-      //System.out.println(numFinalFrames);
       avPlayer.playSummaryVideo(videoDir, audioFile, flag, numFinalFrames);
    }
 
