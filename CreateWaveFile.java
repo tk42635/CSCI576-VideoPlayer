@@ -29,7 +29,7 @@ public class CreateWaveFile {
       }
    }
 
-   public void writeNewWavFile(ArrayList<Integer> finalShots) throws PlayWaveException {
+   public String writeNewWavFile(ArrayList<Integer> finalShots) throws PlayWaveException {
       try {
          AudioFormat audioFormat = audioInputStream.getFormat();
 
@@ -112,7 +112,8 @@ public class CreateWaveFile {
          FileInputStream fis = new FileInputStream(audioOut);
          AudioInputStream audioStream = new AudioInputStream(fis, audioInputStream.getFormat(), audioOut.length() / audioInputStream.getFormat().getFrameSize());
 
-         File audioOutWave = new File("outputAudio.wav");
+         String fileName = "outputAudio.wav";
+         File audioOutWave = new File(fileName);
          boolean successWav = audioOutWave.createNewFile();
          if (!successWav) {
             audioOutWave.delete();
@@ -123,10 +124,10 @@ public class CreateWaveFile {
          fis.close();
          outFileStream.close();
          audioOut.delete();
-
+         return fileName;
       } catch (FileNotFoundException e) {
          e.printStackTrace();
-         return;
+         return null;
       } catch (IOException e1) {
          throw new PlayWaveException(e1);
       }

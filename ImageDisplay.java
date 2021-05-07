@@ -14,7 +14,7 @@ public class ImageDisplay extends Thread {
 	int width = 320;
 	int height = 180;
 
-	ArrayList<Integer> frameDiffs;
+	ArrayList<Integer> frameDiffs,frameDiffs2;
 	ArrayList<Integer> shotBoundaryIdx;
 	double[] frameAggregatedWeights;
 	double[] frameMotionWeights;
@@ -93,6 +93,7 @@ public class ImageDisplay extends Thread {
 
 		shotBoundaryIdx = new ArrayList<>();
 		frameDiffs = new ArrayList<>();
+		frameDiffs2 = new ArrayList<>();
 		frameAggregatedWeights = new double[16199];
 		frameMotionWeights = new double[16199];
 		frameHueWeights = new double[16199];
@@ -106,7 +107,7 @@ public class ImageDisplay extends Thread {
 	 */
 	public ArrayList<Integer> detectShots() {
 		try {
-			double frameDiffMean = 0;
+			double frameDiffMean = 0, frameDiffMean2 = 0;
 			double maxMotionWeight = 0;
 			for (int i = 0; i < 16200; i++) {
 				if (i > 1) {
@@ -120,8 +121,11 @@ public class ImageDisplay extends Thread {
 				if (i > 0) {
 					// int frameDiff = calcFrameDiff(i);
 					int[] res = calcFrameDiffBasedOnBlocks(i);
+					int res2 = calcFrameHistogramDiff(i);
 					frameDiffMean += res[0];
 					frameDiffs.add(res[0]);
+					frameDiffMean2 += res[0];
+					frameDiffs2.add(res[0]);
 					maxMotionWeight = Math.max(maxMotionWeight, res[1]);
 					frameMotionWeights[i-1] = (double)res[1];
 					frameHueWeights[i-1] = getHueWeight(video[i]);
@@ -131,25 +135,33 @@ public class ImageDisplay extends Thread {
 			for(int i = 0;  i < 16199; i++)
 			{
 				frameMotionWeights[i] /= maxMotionWeight;
-				frameAggregatedWeights[i] = frameMotionWeights[i] * 70 + frameHueWeights[i] * 30;
+				frameAggregatedWeights[i] = frameMotionWeights[i] * 40 + frameHueWeights[i] * 30;
 			}
 
 			// Divide frames into shots based on frame diff;
 			// Define threshold as (mean + 2 * standard deviation)
 			frameDiffMean /= 16199.0;
+			frameDiffMean2 /= 16199.0;
 			double frameDiffStandardDeviation = 0;
+			double frameDiffStandardDeviation2 = 0;
 			for (int frameDiff : frameDiffs) {
 				int deviation = (int) (frameDiff - frameDiffMean);
 				frameDiffStandardDeviation += deviation * deviation;
 			}
 			frameDiffStandardDeviation = (long) Math.sqrt(frameDiffStandardDeviation / 16199.0);
+			for (int frameDiff2 : frameDiffs2) {
+				int deviation = (int) (frameDiff2 - frameDiffMean2);
+				frameDiffStandardDeviation2 += deviation * deviation;
+			}
+			frameDiffStandardDeviation2 = (long) Math.sqrt(frameDiffStandardDeviation2 / 16199.0);
 
 
 			double threshold = frameDiffMean + 2 * frameDiffStandardDeviation;
+			double threshold2 = frameDiffMean2 + 2 * frameDiffStandardDeviation2;
 			System.out.println("threshold: " + threshold);
 			FileWriter boundary = new FileWriter("./boundary.txt");
 			for (int i = 0; i < frameDiffs.size(); i++) {
-				if (frameDiffs.get(i) > threshold) {
+				if (frameDiffs.get(i) > threshold && frameDiffs2.get(i) > threshold2) {
 					shotBoundaryIdx.add(i + 1);
 					boundary.write((i + 1) + "\n");
 					System.out.println((i + 1) + " : " + frameDiffs.get(i));
@@ -222,9 +234,10 @@ public class ImageDisplay extends Thread {
 		ArrayList<Integer> finalShots = new ArrayList<>();
 
 		try {
-			FileWriter weights = null;
+			FileWriter weights = null, test_frames = null;
 
 			weights = new FileWriter("./weights_with_audio.txt");
+			test_frames = new FileWriter("./test_frames.txt");
 
 			int count = 0;
 			for (Map.Entry entry : weightedShots.entrySet()) {
@@ -241,10 +254,14 @@ public class ImageDisplay extends Thread {
 				finalShots.add(tmp[1]);
 
 				for (int i = tmp[0]; i < tmp[1]; i++, count++)
+				{
 					flag[i] = 1;
+					test_frames.write(i + "\n");
+				}
 			}
 			weights.write("All the other shots will not be listed here (not included in the trailer either) due to low weights\n");
 			weights.close();
+			test_frames.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -282,7 +299,7 @@ public class ImageDisplay extends Thread {
 			int[] tmp = new int[2];
 			tmp[0] = preIdx;
 			tmp[1] = endIdx;
-			double weight = shotWeight / count + audioWeights.get(audioWeightsIdx) * 20; // motion * 70 + hue * 30 + audio * 20
+			double weight = shotWeight / count + audioWeights.get(audioWeightsIdx) * 30; // motion * 70 + hue * 30 + audio * 20
 			weightedShots.put(weight, tmp.clone());
 			//System.out.println(Arrays.toString(weightedShots.get(weight)));
 			preIdx = endIdx;

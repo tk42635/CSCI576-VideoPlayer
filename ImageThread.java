@@ -78,6 +78,7 @@ public class ImageThread extends Thread {
 
    public void run() {
       try {
+         Thread.sleep(100);
          long start = System.currentTimeMillis();
          int pausedFrame = 0;
          int count = 0;
@@ -98,14 +99,17 @@ public class ImageThread extends Thread {
                   readImageRGB(WIDTH, HEIGHT, videoDir + "frame" + i + ".rgb", video[i]);
                   avPlayer.lbIm1.setIcon(new ImageIcon(video[i]));
 
+                  count++;
                   int j = count - pausedFrame;
 
                   //System.out.println(System.currentTimeMillis());
-                  long end = avPlayer.startTime + (j / 3) * 100 + (j % 3 == 1 ? 34 : (j % 3 == 2 ? 67 : 0));
-                  count++;
+                  long end = start + (j / 3) * 100 + (j % 3 == 1 ? 34 : (j % 3 == 2 ? 67 : 0));
+            
                   while (System.currentTimeMillis() < end) { //for synchronization
 
                   }
+                  // if(count % 100 == 0)
+                  //    System.out.println("Count: " + count + "  Time elapsed: " + (System.currentTimeMillis() - start) + "  should be: " + (count / 3 * 100 + (count % 3 == 1 ? 34 : (count % 3 == 2 ? 67 : 0))));
                }
 
             } else if (avPlayer.status == 0) {

@@ -1,11 +1,20 @@
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Scanner;
+import java.io.File;
+
+import javax.lang.model.util.ElementScanner6;
 
 public class VideoSummarizer {
    static String videoDir;
    static String audioDir;
 
    public static void main(String[] args) throws PlayWaveException, IOException {
+      if(args.length == 1)
+      {
+         playExistedFile(Integer.valueOf(args[0]));
+         return;
+      }
       if (args.length < 2) {
          System.err.println("usage: java VideoSummarizer [VideoFileDirectory(.rgb)] [AudioFile]");
          return;
@@ -72,7 +81,39 @@ public class VideoSummarizer {
 //         System.out.println(i);
 //      }
 
-      avPlayer.playSummaryVideo(args[0], "outputAudio.wav", ren.getFlag(), ren.getNumOfFinalFrames());
+      avPlayer.playSummaryVideo(args[0], "outputAudio_2.wav", ren.getFlag(), ren.getNumOfFinalFrames());
+   }
+
+   public static void playExistedFile(int testID) throws PlayWaveException, IOException {
+      int[] flag = new int[16200];
+      int numFinalFrames = 0;
+      String videoDir, audioFile;
+      Scanner in;
+      if(testID == 1)
+      {
+         in = new Scanner(new File("./test_frames_1.txt"));
+         videoDir = "D:/MyDownloads/Download/test_data/test_data/frames_rgb_test/test_video/";
+         audioFile = "./outputAudio_1.wav";
+      }
+      else if(testID == 2)
+      {
+         in = new Scanner(new File("./test_frames_2.txt"));
+         videoDir = "D:/MyDownloads/Download/test_data_3/test_data_3/frames_rgb_test/test_video_3/";
+         audioFile = "./outputAudio_2.wav";
+      }
+      else
+      {
+         System.err.println("No such video file!");
+         return;
+      }
+      while(in.hasNextInt())
+      {
+         flag[in.nextInt()] = 1;
+         numFinalFrames++;
+      }
+      AVPlayer avPlayer = new AVPlayer();
+      //System.out.println(numFinalFrames);
+      avPlayer.playSummaryVideo(videoDir, audioFile, flag, numFinalFrames);
    }
 
 }
